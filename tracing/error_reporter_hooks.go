@@ -1,5 +1,7 @@
 package tracing
 
+import "fmt"
+
 // ErrorReporterCreateServerSpanHook registers each Server Span with an
 // ErrorReporterSpanHook that will publish errors sent to OnPreStop to Sentry.
 type ErrorReporterCreateServerSpanHook struct{}
@@ -20,10 +22,19 @@ func (h errorReporterSpanHook) OnPostStart(span *Span) error {
 	return nil
 }
 
+type bpErr interface {
+	GetCode() int32
+	GetMessage() string
+}
+
 // OnPreStop logs a message and sends err to Sentry if err is non-nil.
 func (h errorReporterSpanHook) OnPreStop(span *Span, err error) error {
 	if err != nil {
-		span.getHub().CaptureException(err)
+		if v, ok := err.(bpErr); ok {
+			span.getHub().CaptureException(fmt.Errorf("code: %d, message: %s, %w", v.GetCode(), v.GetMessage(), err))
+		} else {
+			span.getHub().CaptureException(err)
+		}
 	}
 	return nil
 }
